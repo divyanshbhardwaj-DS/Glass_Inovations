@@ -56,6 +56,21 @@ async function createTransporter() {
 
 async function sendNotificationEmail(enquiry) {
   if (!transporter) return;
+
+  const rows = buildDetailRows(enquiry.details);
+
+  const summary = [
+    ['Name', enquiry.name],
+    ['Phone', enquiry.phone],
+    ['Contact via', enquiry.preferred_contact === 'sms' ? 'SMS ✓' : 'Phone call'],
+    ['Suburb', enquiry.suburb],
+    ['Service', enquiry.job],
+    ['Project', enquiry.project_type || '—'],
+    ['Job location', enquiry.job_location || '—']
+  ].map(([k, v]) => `• ${k}: ${v}`).join('\n');
+
+  const photoNote = enquiry.photo ? `\n\n📎 Photo attached: ${enquiry.photo_name || 'photo attached'}\n` : '';
+
   try {
     await transporter.sendMail({
       from: `"CGI Website" <${process.env.SMTP_USER}>`,
@@ -64,12 +79,12 @@ async function sendNotificationEmail(enquiry) {
       text: [
         'NEW QUOTE ENQUIRY',
         '─────────────────────────────────────',
-        `Name:    ${enquiry.name}`,
-        `Phone:   ${enquiry.phone}`,
-        `Suburb:  ${enquiry.suburb}`,
-        `Job:     ${enquiry.job}`,
+        summary,
+        '',
+        rows && rows.text ? `DETAILS\n${rows.text}` : '',
         '',
         enquiry.message || '(no message provided)',
+        photoNote,
         '',
         `Submitted: ${enquiry.created_at}`,
         `Enquiry ID: #${enquiry.id}`,
@@ -82,9 +97,24 @@ async function sendNotificationEmail(enquiry) {
           <table style="border-collapse:collapse;width:100%;font-size:15px;color:#F1F3F6;">
             <tr><td style="padding:8px 14px 8px 0;color:#AEB4C0;width:120px;">Name</td><td style="padding:8px 0;font-weight:600;">${validator.escape(enquiry.name)}</td></tr>
             <tr><td style="padding:8px 14px 8px 0;color:#AEB4C0;">Phone</td><td style="padding:8px 0;"><a href="tel:${validator.escape(enquiry.phone)}" style="color:#8FB9C9;text-decoration:none;font-weight:600;">${validator.escape(enquiry.phone)}</a></td></tr>
+            <tr><td style="padding:8px 14px 8px 0;color:#AEB4C0;">Contact via</td><td style="padding:8px 0;font-weight:600;color:${enquiry.preferred_contact === 'sms' ? '#F25A54' : '#8FB9C9'};">${enquiry.preferred_contact === 'sms' ? 'SMS ✓' : 'Phone call'}</td></tr>
             <tr><td style="padding:8px 14px 8px 0;color:#AEB4C0;">Suburb</td><td style="padding:8px 0;">${validator.escape(enquiry.suburb)}</td></tr>
-            <tr><td style="padding:8px 14px 8px 0;color:#AEB4C0;">Job Type</td><td style="padding:8px 0;color:#F25A54;font-weight:600;">${validator.escape(enquiry.job)}</td></tr>
+            <tr><td style="padding:8px 14px 8px 0;color:#AEB4C0;">Service</td><td style="padding:8px 0;color:#F25A54;font-weight:600;">${validator.escape(enquiry.job)}</td></tr>
+            <tr><td style="padding:8px 14px 8px 0;color:#AEB4C0;">Project</td><td style="padding:8px 0;">${validator.escape(enquiry.project_type || '—')}</td></tr>
+            <tr><td style="padding:8px 14px 8px 0;color:#AEB4C0;">Job location</td><td style="padding:8px 0;">${validator.escape(enquiry.job_location || '—')}</td></tr>
           </table>
+          ${rows.html ? `
+            <div style="margin-top:16px;background:#14161A;border:1px solid rgba(255,255,255,0.07);padding:14px 16px;border-radius:6px;">
+              <div style="font-size:12px;color:#828A96;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.05em;">Job details</div>
+              ${rows.html}
+            </div>
+          ` : ''}
+          ${enquiry.photo ? `
+            <div style="margin-top:16px;background:#14161A;border:1px solid rgba(255,255,255,0.07);padding:14px 16px;border-radius:6px;">
+              <div style="font-size:12px;color:#828A96;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.05em;">Customer photo — ${validator.escape(enquiry.photo_name || 'photo')}</div>
+              <img src="${enquiry.photo}" alt="Customer photo" style="max-width:100%;border-radius:6px;border:1px solid #21242C;" />
+            </div>
+          ` : ''}
           ${enquiry.message ? `
             <div style="margin-top:16px;background:#14161A;border:1px solid rgba(255,255,255,0.07);padding:14px 16px;border-radius:6px;">
               <div style="font-size:12px;color:#828A96;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.05em;">Message</div>
@@ -99,6 +129,50 @@ async function sendNotificationEmail(enquiry) {
   } catch (err) {
     console.error('[mailer] Send failed:', err.message);
   }
+}
+
+// Build human-readable detail rows for the notification email
+function buildDetailRows(details) {
+  if (!details || typeof details !== 'object') return { text: '', html: '' };
+  const labels = {
+    shower: {
+      title: 'Shower screens',
+      map: { length: 'Length (mm)', width: 'Width (mm)', height: 'Height (mm)', style: 'Style', glass: 'Glass finish' }
+    },
+    petdoor: {
+      title: 'Pet door',
+      map: { type: 'Pet', dogsize: 'Dog size', height: 'Opening height', width: 'Opening width', location: 'Location' }
+    },
+    splashback: {
+      title: 'Splashback',
+      map: { width: 'Width (approx)', height: 'Height (approx)', finish: 'Finish type' }
+    },
+    mirror: {
+      title: 'Mirror',
+      map: { type: 'Mirror type' }
+    }
+  };
+  const textLines = [];
+  const htmlRows = [];
+  Object.keys(labels).forEach(section => {
+    const src = details[section];
+    if (!src || typeof src !== 'object') return;
+    const conf = labels[section];
+    const entries = Object.keys(conf.map).filter(k => src[k]).map(k => [conf.map[k], src[k]]);
+    if (!entries.length) return;
+    textLines.push(`${conf.title}: ${entries.map(([k, v]) => `${k} — ${v}`).join(', ')}`);
+    entries.forEach(([k, v]) => {
+      htmlRows.push(
+        `<span style="color:#AEB4C0;font-size:13px;">${validator.escape(k)}</span>&nbsp;` +
+        `<span style="color:#F1F3F6;font-size:14px;font-weight:600;">${validator.escape(String(v))}</span>`
+      );
+    });
+    htmlRows.push('<hr style="border:0;border-top:1px solid #21242C;margin:6px 0;" />');
+  });
+  return {
+    text: textLines.join('\n'),
+    html: htmlRows.join('<br/>')
+  };
 }
 
 // ─── App ─────────────────────────────────────────────────────────────────────
@@ -122,8 +196,8 @@ app.use(cors({
   credentials: true,
 }));
 
-app.use(express.json({ limit: '64kb' }));
-app.use(express.urlencoded({ extended: false, limit: '64kb' }));
+app.use(express.json({ limit: '8mb' }));
+app.use(express.urlencoded({ extended: false, limit: '8mb' }));
 
 // ─── Rate limits ─────────────────────────────────────────────────────────────
 const quoteLimiter = rateLimit({
@@ -176,14 +250,22 @@ app.get('/api/health', (req, res) => {
 // POST /api/quote — submit a quote enquiry
 app.post('/api/quote', quoteLimiter, (req, res) => {
   try {
-    const { name, phone, suburb, job, message } = req.body || {};
+    const {
+      name, phone, suburb, job, message,
+      service, project_type, job_location, preferred_contact,
+      details, photo, photo_name
+    } = req.body || {};
 
     const errors = {};
     const cleanName = sanitise(name);
     const cleanPhone = sanitise(phone);
     const cleanSuburb = sanitise(suburb);
-    const cleanJob = sanitise(job);
     const cleanMsg = sanitise(message);
+    const cleanService = sanitise(service || job);
+    const cleanProjectType = sanitise(project_type);
+    const cleanJobLocation = sanitise(job_location);
+    const cleanPreferred = sanitise(preferred_contact) || 'call';
+    const cleanPhotoName = sanitise(photo_name).slice(0, 200);
 
     if (!cleanName || cleanName.length < 2) {
       errors.name = 'Please enter your name.';
@@ -206,26 +288,67 @@ app.post('/api/quote', quoteLimiter, (req, res) => {
       errors.suburb = 'Suburb name is too long.';
     }
 
-    const VALID_JOBS = ['Splashback', 'Shower screen', 'Balustrade', 'Pool fencing', 'Mirror', 'Repair — same day', 'Other'];
-    if (!cleanJob || !VALID_JOBS.includes(cleanJob)) {
-      errors.job = 'Please select a valid job type.';
+    const VALID_SERVICES = ['Shower screen', 'Pet door', 'Splashback', 'Mirror', 'Emergency glass', 'Reglazing', 'Balustrade', 'Pool fencing', 'Other'];
+    if (!cleanService || !VALID_SERVICES.includes(cleanService)) {
+      errors.service = 'Please select the service you need.';
+    }
+
+    const VALID_PREFERRED = ['call', 'sms'];
+    if (!VALID_PREFERRED.includes(cleanPreferred)) {
+      errors.preferred_contact = 'Invalid contact preference.';
+    }
+
+    if (photo && typeof photo === 'string') {
+      if (photo.length > 6 * 1024 * 1024) {
+        errors.photo = 'Photo is too large.';
+      } else if (!/^data:image\/(png|jpe?g|gif|webp);base64,/.test(photo.slice(0, 100))) {
+        errors.photo = 'Photo must be a PNG, JPG, GIF or WebP image.';
+      }
     }
 
     if (Object.keys(errors).length > 0) {
       return res.status(422).json({ error: 'Validation failed.', fields: errors });
     }
 
+    // Filter the details object to allowed keys for each service
+    const safeDetails = {};
+    if (details && typeof details === 'object') {
+      const allow = {
+        shower:    ['length', 'width', 'height', 'style', 'glass'],
+        petdoor:   ['type', 'dogsize', 'height', 'width', 'location'],
+        splashback:['width', 'height', 'finish'],
+        mirror:    ['type']
+      };
+      Object.keys(allow).forEach(section => {
+        const src = details[section];
+        if (!src || typeof src !== 'object') return;
+        const out = {};
+        allow[section].forEach(k => {
+          const v = src[k];
+          if (typeof v === 'string' && v.trim() !== '') out[k] = v.trim().slice(0, 120);
+        });
+        if (Object.keys(out).length > 0) safeDetails[section] = out;
+      });
+    }
+
     const enquiry = db.insert({
       name: cleanName,
       phone: cleanPhone,
       suburb: cleanSuburb,
-      job: cleanJob,
+      job: cleanService,
+      service: cleanService,
+      project_type: cleanProjectType,
+      job_location: cleanJobLocation,
+      preferred_contact: cleanPreferred,
+      details: safeDetails,
+      photo: photo && typeof photo === 'string' ? photo : null,
+      photo_name: photo ? cleanPhotoName : null,
       message: cleanMsg,
       ip: (req.ip || '').slice(0, 60),
       user_agent: (req.headers['user-agent'] || '').slice(0, 300)
     });
 
-    console.log(`[quote] New enquiry #${enquiry.id}: ${enquiry.name} — ${enquiry.job} (${enquiry.suburb})`);
+    console.log(`[quote] New enquiry #${enquiry.id}: ${enquiry.name} — ${enquiry.service} (${enquiry.suburb})`);
 
     // Asynchronous background email delivery
     sendNotificationEmail(enquiry).catch(() => {});

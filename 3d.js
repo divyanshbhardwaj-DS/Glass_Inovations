@@ -19,7 +19,7 @@
   var light = coarse || tiny || lowCores;
 
   var renderer, scene, camera;
-  var group, cloud, accent, glint;
+  var group, cloud, accent, glint, ring;
   var camBase = 9.6;
   var pointer = { x: 0, y: 0 };
   var dragRot = 0, dragging = false, dragStartX = 0;
@@ -150,10 +150,33 @@
     return mesh;
   }
 
+  function imagePanel(w, h, url, opts) {
+    opts = opts || {};
+    var mesh = panel(w, h, {
+      x: opts.x || 0, y: opts.y || 0, z: opts.z || 0,
+      ry: opts.ry || 0, rx: opts.rx || 0,
+      mat: new THREE.MeshPhysicalMaterial({
+        color: 0xffffff, roughness: 0.26, metalness: 0.04,
+        clearcoat: 0.85, clearcoatRoughness: 0.3, side: THREE.DoubleSide
+      })
+    });
+    var loader = new THREE.TextureLoader();
+    loader.crossOrigin = 'anonymous';
+    loader.load(url, function (tex) {
+      if (!has3d) return;
+      tex.encoding = THREE.sRGBEncoding;
+      tex.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+      mesh.material.map = tex;
+      mesh.material.needsUpdate = true;
+    }, undefined, function () {});
+    return mesh;
+  }
+
   function buildPanels() {
     group = new THREE.Group();
     scene.add(group);
 
+    /* central photographic panel — brand imagery */
     var photo = panel(2.45, 3.35, { x: 0, y: -0.02, z: -0.35, ry: -0.12, mat: new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.26, metalness: 0.04, clearcoat: 0.85, clearcoatRoughness: 0.3, side: THREE.DoubleSide }) });
     var img = document.getElementById('heroImg');
     if (img) {
@@ -168,9 +191,25 @@
       }, undefined, function () {});
     }
 
+    /* extra photographic panels — pet through pet door + shower lifestyle shots */
+    imagePanel(1.42, 2.0, 'https://images.unsplash.com/photo-1721070841873-c1d044993666?q=80&w=700&auto=format&fit=crop', { x: -1.98, y: 1.28, z: -0.72, ry: 0.74, rx: 0.05 });
+    imagePanel(1.36, 1.92, 'https://images.unsplash.com/photo-1771929662486-f793e08f0f16?q=80&w=700&auto=format&fit=crop', { x: 1.98, y: 1.1, z: -0.6, ry: -0.7, rx: -0.04 });
+
+    /* frameless glass accent panels */
     panel(0.95, 3.1, { x: -2.05, y: 0.08, z: -0.9, ry: 0.75, mat: glassMat({ color: 0xeef3f9, opacity: 0.32 }), edgeOpacity: 0.4 });
     panel(0.88, 2.85, { x: 1.95, y: -0.05, z: -0.75, ry: -0.62, mat: glassMat({ color: 0xf6f9fd, opacity: 0.34 }), edgeOpacity: 0.4 });
     panel(1.25, 1.25, { x: -0.85, y: -1.8, z: -1.35, ry: 0.5, rx: 0.12, mat: glassMat({ color: 0xc8353a, opacity: 0.52, roughness: 0.18 }), edgeOpacity: 0.45, edgeColor: 0xffd9da });
+    panel(0.62, 0.62, { x: 1.1, y: -1.9, z: -1.5, ry: -0.42, rx: 0.1, mat: glassMat({ color: 0x8fb9c9, opacity: 0.4 }), edgeOpacity: 0.4, edgeColor: 0xbfe0ec });
+    panel(0.42, 2.4, { x: -1.05, y: -1.55, z: -1.45, ry: 0.34, mat: glassMat({ color: 0xf6f9fd, opacity: 0.26 }), edgeOpacity: 0.32 });
+
+    /* sleek accent ring orbiting the scene */
+    ring = new THREE.Mesh(
+      new THREE.TorusGeometry(1.85, 0.028, 16, 120),
+      new THREE.MeshBasicMaterial({ color: 0xf25a54, transparent: true, opacity: 0.34 })
+    );
+    ring.position.set(0, 0.1, -2.3);
+    ring.rotation.x = 0.35;
+    group.add(ring);
   }
 
   function makePoints(count, color, opacity, size, additive) {
@@ -258,6 +297,11 @@
 
     cloud.rotation.y = t * 0.028;
     cloud.position.y = Math.sin(t * 0.12) * 0.12;
+
+    if (ring) {
+      ring.rotation.z = t * 0.5;
+      ring.scale.setScalar(1 + Math.sin(t * 0.8) * 0.02);
+    }
 
     renderer.render(scene, camera);
     start();

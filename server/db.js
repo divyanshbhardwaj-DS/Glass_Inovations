@@ -63,6 +63,7 @@ class DatabaseStore {
         phone: '0412 345 678',
         suburb: 'Williamstown',
         job: 'Balustrade',
+        service: 'Balustrade',
         message: 'Looking for a frameless glass balustrade for a 6m second-floor balcony overlooking the bay.',
         ip: '127.0.0.1',
         user_agent: 'Initial Seed',
@@ -76,6 +77,7 @@ class DatabaseStore {
         phone: '0498 765 432',
         suburb: 'Point Cook',
         job: 'Splashback',
+        service: 'Splashback',
         message: 'Kitchen renovation underway. Need metallic sage green toughened splashback measured and fitted.',
         ip: '127.0.0.1',
         user_agent: 'Initial Seed',
@@ -95,6 +97,13 @@ class DatabaseStore {
       phone: item.phone,
       suburb: item.suburb,
       job: item.job,
+      service: item.service || item.job,
+      project_type: item.project_type || null,
+      job_location: item.job_location || null,
+      preferred_contact: item.preferred_contact || 'call',
+      details: item.details || {},
+      photo: item.photo || null,
+      photo_name: item.photo_name || null,
       message: item.message || null,
       ip: item.ip || null,
       user_agent: item.user_agent || null,
@@ -125,7 +134,8 @@ class DatabaseStore {
         (e.name && e.name.toLowerCase().includes(q)) ||
         (e.suburb && e.suburb.toLowerCase().includes(q)) ||
         (e.phone && e.phone.toLowerCase().includes(q)) ||
-        (e.job && e.job.toLowerCase().includes(q)) ||
+        ((e.job || '') && e.job.toLowerCase().includes(q)) ||
+        ((e.service || '') && e.service.toLowerCase().includes(q)) ||
         (e.message && e.message.toLowerCase().includes(q))
       );
     }

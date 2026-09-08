@@ -84,6 +84,14 @@
   td .job{display:inline-block;padding:2px 8px;border-radius:4px;background:rgba(255,255,255,0.04);border:1px solid var(--line);font-size:12px;font-weight:500;}
   td .msg{font-size:12px;color:var(--muted);max-width:280px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   td .date{font-size:11.5px;color:var(--dim);font-family:var(--mono);}
+  td .detail{font-size:12px;color:var(--glint);max-width:280px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:2px;}
+  td .detail:empty{display:none;}
+  .sms-chip,.call-chip{font-family:var(--mono);font-size:9.5px;font-weight:700;padding:2px 6px;border-radius:4px;vertical-align:middle;}
+  .sms-chip{color:var(--accent-hi);border:1px solid rgba(242,90,84,0.4);background:rgba(200,53,58,0.12);}
+  .call-chip{color:var(--glint);border:1px solid rgba(143,185,201,0.4);background:rgba(143,185,201,0.1);}
+  .photo-thumb{display:inline-block;margin-top:6px;}
+  .photo-thumb img{width:84px;height:56px;object-fit:cover;border-radius:6px;border:1px solid var(--line-2);display:block;transition:border-color .15s;}
+  .photo-thumb img:hover{border-color:var(--accent-hi);}
 
   /* ── Status Selectors ── */
   .status-sel{background:var(--ink-2);border:1px solid var(--line-2);color:var(--frost);padding:6px 10px;border-radius:6px;font-size:12px;font-family:var(--mono);font-weight:600;cursor:pointer;outline:none;}
@@ -258,13 +266,41 @@
     });
   }
 
-  function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
   function formatDate(s){
     if(!s) return '–';
     var d = new Date(s.includes('Z') ? s : s + 'Z');
     return d.toLocaleDateString('en-AU',{day:'2-digit',month:'short'}) + ' · ' +
            d.toLocaleTimeString('en-AU',{hour:'2-digit',minute:'2-digit'});
+  }
+
+  var DETAIL_LABELS = {
+    'shower.shower_length': 'Shower length', 'shower.shower_width': 'Shower width', 'shower.shower_height': 'Shower height',
+    'shower.style': 'Style', 'shower.glass': 'Glass finish',
+    'petdoor.type': 'Pet', 'petdoor.dogsize': 'Dog size', 'petdoor.height': 'Opening height', 'petdoor.width': 'Opening width', 'petdoor.location': 'Location',
+    'splashback.width': 'Width', 'splashback.height': 'Height', 'splashback.finish': 'Finish',
+    'mirror.type': 'Mirror type'
+  };
+
+  function detailsSummary(r) {
+    var parts = [];
+    var det = r.details || {};
+    var base = {
+      shower: 'Shower', petdoor: 'Pet door', splashback: 'Splashback', mirror: 'Mirror'
+    };
+    Object.keys(base).forEach(function(section){
+      var src = det[section];
+      if(!src || typeof src !== 'object') return;
+      var rows = Object.keys(src).filter(function(k){ return src[k]; });
+      parts.push(base[section] + ': ' + rows.map(function(k){
+        var label = DETAIL_LABELS[section + '.' + k] || k;
+        return label + ' ' + src[k];
+      }).join(', '));
+    });
+    if(r.project_type) parts.unshift('Project: ' + r.project_type);
+    if(r.job_location) parts.push('Location: ' + r.job_location);
+    return parts.join(' · ');
   }
 
   function renderTable(rows) {
@@ -278,11 +314,17 @@
         var labels = { new:'New Lead', contacted:'Contacted', quoted:'Quoted', won:'Won & Installed', lost:'Lost / Cancelled' };
         return '<option value="'+s+'"' + (s===r.status?' selected':'') + '>'+labels[s]+'</option>';
       }).join('');
+      var details = detailsSummary(r);
+      var detailsHtml = details ? '<div class="detail" title="'+esc(details)+'">'+esc(details)+'</div>' : '';
+      var photoHtml = r.photo
+        ? '<a class="photo-thumb" href="'+esc(r.photo)+'" target="_blank" title="View photo"><img src="'+esc(r.photo)+'" alt="Customer photo" /></a>'
+        : '';
+      var contactVia = r.preferred_contact === 'sms' ? '<span class="sms-chip">SMS</span>' : '<span class="call-chip">Call</span>';
       return '<tr data-id="'+r.id+'">' +
         '<td><span class="id">#'+r.id+'</span></td>' +
-        '<td><div class="name">'+esc(r.name)+'</div><div class="phone"><a href="tel:'+esc(r.phone)+'">'+esc(r.phone)+'</a> · <span class="suburb">'+esc(r.suburb)+'</span></div></td>' +
+        '<td><div class="name">'+esc(r.name)+'</div><div class="phone"><a href="tel:'+esc(r.phone)+'">'+esc(r.phone)+'</a> '+contactVia+' · <span class="suburb">'+esc(r.suburb)+'</span></div></td>' +
         '<td><span class="job">'+esc(r.job)+'</span></td>' +
-        '<td><div class="msg" title="'+esc(r.message||'')+'+">'+esc(r.message||'— No additional notes —')+'</div></td>' +
+        '<td>'+detailsHtml+'<div class="msg" title="'+esc(r.message||'')+'">'+esc(r.message||'— No additional notes —')+'</div>'+photoHtml+'</td>' +
         '<td><select class="status-sel" data-id="'+r.id+'" data-status="'+r.status+'">'+statusOpts+'</select></td>' +
         '<td><div class="date">'+formatDate(r.created_at)+'</div></td>' +
         '<td><button class="del-btn" data-id="'+r.id+'" title="Delete enquiry #'+r.id+'" aria-label="Delete">' +
@@ -371,7 +413,7 @@
 
   document.getElementById('exportBtn').addEventListener('click', function(){
     if(!state.allData.length){ toast('No data to export', 'error'); return; }
-    var headers = ['ID', 'Name', 'Phone', 'Suburb', 'Job', 'Message', 'Status', 'Date'];
+    var headers = ['ID', 'Name', 'Phone', 'PreferredContact', 'Suburb', 'Service', 'ProjectType', 'JobLocation', 'Details', 'Message', 'Status', 'Date'];
     var csvContent = 'data:text/csv;charset=utf-8,' +
       headers.join(',') + '\n' +
       state.allData.map(function(r){
@@ -379,8 +421,12 @@
           r.id,
           '"' + (r.name||'').replace(/"/g, '""') + '"',
           '"' + (r.phone||'').replace(/"/g, '""') + '"',
+          '"' + (r.preferred_contact||'').replace(/"/g, '""') + '"',
           '"' + (r.suburb||'').replace(/"/g, '""') + '"',
-          '"' + (r.job||'').replace(/"/g, '""') + '"',
+          '"' + (r.job||r.service||'').replace(/"/g, '""') + '"',
+          '"' + (r.project_type||'').replace(/"/g, '""') + '"',
+          '"' + (r.job_location||'').replace(/"/g, '""') + '"',
+          '"' + (detailsSummary(r)||'').replace(/"/g, '""') + '"',
           '"' + (r.message||'').replace(/"/g, '""') + '"',
           r.status,
           r.created_at
