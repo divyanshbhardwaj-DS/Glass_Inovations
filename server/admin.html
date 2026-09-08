@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CGI Executive Admin — Customer Enquiries &amp; Pipeline</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#08090B;--ink-2:#0E1013;--panel:#14161A;--panel-2:#1A1D23;--panel-3:#21242C;
+    --frost:#F1F3F6;--muted:#AEB4C0;--dim:#828A96;
+    --accent:#C8353A;--accent-h:#E24B46;--accent-hi:#F25A54;--accent-soft:rgba(200,53,58,0.14);
+    --glint:#8FB9C9;--glint-soft:rgba(143,185,201,0.14);
+    --line:rgba(255,255,255,.07);--line-2:rgba(255,255,255,.14);
+    --success:#54C18B;--warning:#E7B253;--error:#E66059;
+    --r:10px;--r-l:18px;
+    --font:'Inter',system-ui,-apple-system,sans-serif;--mono:'Space Mono',monospace;
+  }
+  *{box-sizing:border-box;}
+  html{color-scheme:dark;}
+  body{margin:0;background:var(--ink);color:var(--frost);font-family:var(--font);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased;}
+  a{color:inherit;text-decoration:none;}
+  button{font:inherit;cursor:pointer;border:none;}
+  input{font:inherit;}
+
+  /* ── Background Glow ── */
+  .bg-glow{position:fixed;width:500px;height:500px;top:-150px;right:-100px;background:radial-gradient(circle,rgba(200,53,58,0.2),transparent 70%);filter:blur(100px);pointer-events:none;z-index:0;}
+
+  /* ── Header ── */
+  .header{display:flex;align-items:center;gap:16px;padding:16px 32px;border-bottom:1px solid var(--line-2);background:rgba(20,22,26,0.85);backdrop-filter:blur(20px);position:sticky;top:0;z-index:50;}
+  .header .logo{display:flex;align-items:center;gap:12px;}
+  .header .logo svg{width:34px;height:34px;stroke:var(--accent-hi);}
+  .header h1{font-size:15px;font-weight:700;margin:0;letter-spacing:-.01em;color:#fff;}
+  .header .sub{font-size:11.5px;color:var(--muted);font-family:var(--mono);}
+  .header .spacer{flex:1;}
+  .header-actions{display:flex;align-items:center;gap:12px;}
+  .tag{font-size:11px;font-family:var(--mono);color:var(--glint);background:rgba(143,185,201,0.1);padding:4px 10px;border-radius:6px;border:1px solid rgba(143,185,201,0.25);font-weight:700;}
+  .btn-site{font-size:12px;color:var(--muted);background:var(--panel-2);border:1px solid var(--line-2);padding:6px 12px;border-radius:6px;transition:all .15s;}
+  .btn-site:hover{color:#fff;border-color:rgba(255,255,255,0.3);}
+
+  .main{max-width:1300px;margin:0 auto;padding:32px 24px;position:relative;z-index:1;}
+
+  /* ── Stats Row ── */
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:32px;}
+  .stat{background:rgba(20,22,26,0.7);backdrop-filter:blur(16px);border:1px solid var(--line);border-radius:var(--r);padding:20px 22px;box-shadow:0 10px 30px rgba(0,0,0,0.3);position:relative;overflow:hidden;}
+  .stat::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,rgba(255,255,255,0.1),transparent);}
+  .stat .n{font-size:30px;font-weight:800;font-family:var(--mono);color:#fff;line-height:1.1;}
+  .stat .label{font-size:12px;color:var(--muted);margin-top:4px;text-transform:uppercase;letter-spacing:0.04em;font-weight:600;}
+  .stat.accent .n{color:var(--accent-hi);}
+  .stat.accent{border-color:rgba(200,53,58,0.3);}
+  .stat.warn .n{color:var(--warning);}
+  .stat.success .n{color:var(--success);}
+  .stat.info .n{color:var(--glint);}
+
+  /* ── Toolbar ── */
+  .toolbar{display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap;align-items:center;background:rgba(20,22,26,0.6);backdrop-filter:blur(16px);padding:12px 16px;border-radius:var(--r);border:1px solid var(--line);}
+  .search-box{position:relative;flex:1;min-width:240px;}
+  .search-box input{width:100%;background:var(--ink-2);border:1px solid var(--line-2);color:var(--frost);padding:8px 14px 8px 34px;border-radius:6px;font-size:13px;outline:none;}
+  .search-box input:focus{border-color:var(--accent);}
+  .search-box svg{position:absolute;left:10px;top:50%;transform:translateY(-50%);width:16px;height:16px;stroke:var(--dim);}
+
+  .filter-group{display:flex;gap:6px;flex-wrap:wrap;}
+  .filter-btn{background:var(--panel-2);border:1px solid var(--line-2);color:var(--muted);padding:7px 13px;border-radius:6px;font-size:12.5px;font-weight:500;transition:all .15s;}
+  .filter-btn:hover{color:#fff;border-color:rgba(255,255,255,0.25);}
+  .filter-btn.active{background:linear-gradient(135deg,var(--accent),var(--accent-deep));border-color:var(--accent-hi);color:#fff;font-weight:700;}
+
+  .action-btn{background:var(--panel-2);border:1px solid var(--line-2);color:var(--frost);padding:7px 14px;border-radius:6px;font-size:12.5px;display:flex;align-items:center;gap:6px;transition:all .15s;font-weight:500;}
+  .action-btn:hover{border-color:var(--glint);color:#fff;background:rgba(143,185,201,0.1);}
+  .action-btn svg{width:14px;height:14px;}
+
+  /* ── Table ── */
+  .table-wrap{background:rgba(20,22,26,0.8);backdrop-filter:blur(24px);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;box-shadow:0 24px 50px rgba(0,0,0,0.5);}
+  table{width:100%;border-collapse:collapse;}
+  thead th{padding:14px 18px;text-align:left;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);border-bottom:1px solid var(--line-2);background:var(--ink-2);}
+  tbody tr{border-bottom:1px solid var(--line);transition:background .12s;}
+  tbody tr:last-child{border-bottom:none;}
+  tbody tr:hover{background:rgba(255,255,255,0.03);}
+  td{padding:14px 18px;font-size:13.5px;color:var(--frost);vertical-align:middle;}
+  td .id{font-family:var(--mono);font-size:11px;color:var(--dim);font-weight:700;}
+  td .name{font-weight:600;color:#fff;}
+  td .phone a{color:var(--glint);font-family:var(--mono);font-size:12.5px;font-weight:600;}
+  td .suburb{color:var(--muted);font-size:12.5px;}
+  td .job{display:inline-block;padding:2px 8px;border-radius:4px;background:rgba(255,255,255,0.04);border:1px solid var(--line);font-size:12px;font-weight:500;}
+  td .msg{font-size:12px;color:var(--muted);max-width:280px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  td .date{font-size:11.5px;color:var(--dim);font-family:var(--mono);}
+
+  /* ── Status Selectors ── */
+  .status-sel{background:var(--ink-2);border:1px solid var(--line-2);color:var(--frost);padding:6px 10px;border-radius:6px;font-size:12px;font-family:var(--mono);font-weight:600;cursor:pointer;outline:none;}
+  .status-sel[data-status="new"]{border-color:var(--glint);color:var(--glint);}
+  .status-sel[data-status="contacted"]{border-color:var(--warning);color:var(--warning);}
+  .status-sel[data-status="quoted"]{border-color:var(--accent-hi);color:var(--accent-hi);}
+  .status-sel[data-status="won"]{border-color:var(--success);color:var(--success);}
+  .status-sel[data-status="lost"]{border-color:var(--dim);color:var(--dim);}
+  option{background:var(--panel-3);color:#fff;}
+
+  .del-btn{background:none;border:none;color:var(--dim);padding:6px;border-radius:6px;display:flex;align-items:center;transition:all .15s;}
+  .del-btn:hover{color:var(--error);background:rgba(230,96,89,0.15);}
+  .del-btn svg{width:16px;height:16px;}
+
+  /* ── Empty / Loading ── */
+  .empty{text-align:center;padding:70px 20px;color:var(--dim);}
+  .empty svg{width:48px;height:48px;margin:0 auto 14px;opacity:.3;}
+  .loading{text-align:center;padding:70px 20px;color:var(--muted);}
+
+  /* ── Pagination ── */
+  .pagination{display:flex;gap:6px;align-items:center;margin-top:20px;justify-content:flex-end;}
+  .page-btn{background:var(--panel);border:1px solid var(--line-2);color:var(--muted);width:34px;height:34px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:13px;transition:all .15s;}
+  .page-btn:hover:not(:disabled){color:#fff;border-color:rgba(255,255,255,0.3);}
+  .page-btn.active{background:var(--accent);border-color:var(--accent-hi);color:#fff;font-weight:700;}
+  .page-btn:disabled{opacity:.3;cursor:default;}
+  .page-info{font-size:12px;color:var(--dim);font-family:var(--mono);padding:0 8px;}
+
+  /* ── Toast ── */
+  .toast-container{position:fixed;bottom:24px;right:24px;display:flex;flex-direction:column;gap:8px;z-index:9999;}
+  .toast{background:rgba(33,36,44,0.95);backdrop-filter:blur(16px);border:1px solid var(--line-2);border-radius:var(--r);padding:12px 18px;font-size:13px;box-shadow:0 12px 36px rgba(0,0,0,.6);display:flex;align-items:center;gap:10px;animation:slideIn .2s ease;}
+  .toast.success{border-color:rgba(84,193,139,.4);}
+  .toast.error{border-color:rgba(230,96,89,.4);}
+  .toast-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
+  .toast.success .toast-dot{background:var(--success);}
+  .toast.error .toast-dot{background:var(--error);}
+  @keyframes slideIn{from{opacity:0;transform:translateX(20px);}to{opacity:1;transform:none;}}
+
+  @media(max-width:800px){
+    .header{padding:14px 18px;}
+    .main{padding:18px;}
+    thead th:nth-child(4),td:nth-child(4){display:none;}
+  }
+</style>
+</head>
+<body>
+
+<div class="bg-glow"></div>
+
+<div class="header">
+  <div class="logo">
+    <svg viewBox="0 0 100 100" fill="none" stroke-width="8">
+      <rect x="14" y="8" width="52" height="52"/>
+      <rect x="30" y="34" width="52" height="52"/>
+    </svg>
+    <div>
+      <h1>Complete Glass Innovations</h1>
+      <div class="sub">Executive Enquiries &amp; Pipeline</div>
+    </div>
+  </div>
+  <div class="spacer"></div>
+  <div class="header-actions">
+    <a href="/" target="_blank" class="btn-site">View Live Website ↗</a>
+    <span class="tag">SECURE API</span>
+  </div>
+</div>
+
+<div class="main">
+  <div class="stats" id="statsRow">
+    <div class="stat accent"><div class="n" id="statTotal">–</div><div class="label">Total Leads</div></div>
+    <div class="stat info"><div class="n" id="statNew">–</div><div class="label">New / Action Req.</div></div>
+    <div class="stat warn"><div class="n" id="statContacted">–</div><div class="label">In Progress</div></div>
+    <div class="stat success"><div class="n" id="statWon">–</div><div class="label">Won / Installed</div></div>
+  </div>
+
+  <div class="toolbar">
+    <div class="search-box">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input type="text" id="searchInput" placeholder="Search customer, phone, suburb, job details...">
+    </div>
+
+    <div class="filter-group" id="filters">
+      <button class="filter-btn active" data-status="">All</button>
+      <button class="filter-btn" data-status="new">New</button>
+      <button class="filter-btn" data-status="contacted">Contacted</button>
+      <button class="filter-btn" data-status="quoted">Quoted</button>
+      <button class="filter-btn" data-status="won">Won</button>
+      <button class="filter-btn" data-status="lost">Lost</button>
+    </div>
+
+    <button class="action-btn" id="exportBtn" title="Export current leads to CSV">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Export CSV
+    </button>
+
+    <button class="action-btn" id="refreshBtn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+      Refresh
+    </button>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Customer</th>
+          <th>Application</th>
+          <th>Project Scope &amp; Notes</th>
+          <th>Pipeline Status</th>
+          <th>Received Date</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="tableBody">
+        <tr><td colspan="7" class="loading">Loading records…</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="pagination" id="pagination"></div>
+</div>
+
+<div class="toast-container" id="toasts"></div>
+
+<script>
+(function() {
+  'use strict';
+
+  var state = { filter: '', search: '', page: 1, total: 0, pages: 1, allData: [] };
+
+  function toast(msg, type) {
+    var c = document.getElementById('toasts');
+    var el = document.createElement('div');
+    el.className = 'toast ' + (type || 'success');
+    el.innerHTML = '<div class="toast-dot"></div><span>' + msg + '</span>';
+    c.appendChild(el);
+    setTimeout(function(){ el.remove(); }, 3500);
+  }
+
+  function apiFetch(url, opts) {
+    return fetch(url, opts).then(function(r) {
+      return r.json().then(function(d) {
+        if (!r.ok) throw new Error(d.error || 'Request failed');
+        return d;
+      });
+    });
+  }
+
+  function loadStats() {
+    apiFetch('/admin/api/enquiries?limit=1000').then(function(d) {
+      var rows = d.data || [];
+      state.allData = rows;
+      document.getElementById('statTotal').textContent     = d.total;
+      document.getElementById('statNew').textContent       = rows.filter(function(r){return r.status==='new';}).length;
+      document.getElementById('statContacted').textContent = rows.filter(function(r){return r.status==='contacted';}).length;
+      document.getElementById('statWon').textContent       = rows.filter(function(r){return r.status==='won';}).length;
+    }).catch(function(){});
+  }
+
+  function loadEnquiries() {
+    var url = '/admin/api/enquiries?page=' + state.page + '&limit=25' +
+              (state.filter ? '&status=' + encodeURIComponent(state.filter) : '') +
+              (state.search ? '&search=' + encodeURIComponent(state.search) : '');
+    apiFetch(url).then(function(d) {
+      state.total = d.total;
+      state.pages = d.pages || 1;
+      renderTable(d.data || []);
+      renderPagination();
+    }).catch(function(err) {
+      document.getElementById('tableBody').innerHTML =
+        '<tr><td colspan="7" class="empty">Failed to load: ' + err.message + '</td></tr>';
+    });
+  }
+
+  function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+  function formatDate(s){
+    if(!s) return '–';
+    var d = new Date(s.includes('Z') ? s : s + 'Z');
+    return d.toLocaleDateString('en-AU',{day:'2-digit',month:'short'}) + ' · ' +
+           d.toLocaleTimeString('en-AU',{hour:'2-digit',minute:'2-digit'});
+  }
+
+  function renderTable(rows) {
+    var tbody = document.getElementById('tableBody');
+    if (!rows.length) {
+      tbody.innerHTML = '<tr><td colspan="7" class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>No matching enquiries found.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = rows.map(function(r) {
+      var statusOpts = ['new','contacted','quoted','won','lost'].map(function(s){
+        var labels = { new:'New Lead', contacted:'Contacted', quoted:'Quoted', won:'Won & Installed', lost:'Lost / Cancelled' };
+        return '<option value="'+s+'"' + (s===r.status?' selected':'') + '>'+labels[s]+'</option>';
+      }).join('');
+      return '<tr data-id="'+r.id+'">' +
+        '<td><span class="id">#'+r.id+'</span></td>' +
+        '<td><div class="name">'+esc(r.name)+'</div><div class="phone"><a href="tel:'+esc(r.phone)+'">'+esc(r.phone)+'</a> · <span class="suburb">'+esc(r.suburb)+'</span></div></td>' +
+        '<td><span class="job">'+esc(r.job)+'</span></td>' +
+        '<td><div class="msg" title="'+esc(r.message||'')+'+">'+esc(r.message||'— No additional notes —')+'</div></td>' +
+        '<td><select class="status-sel" data-id="'+r.id+'" data-status="'+r.status+'">'+statusOpts+'</select></td>' +
+        '<td><div class="date">'+formatDate(r.created_at)+'</div></td>' +
+        '<td><button class="del-btn" data-id="'+r.id+'" title="Delete enquiry #'+r.id+'" aria-label="Delete">' +
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6m5 0V4h4v2"/></svg>' +
+        '</button></td>' +
+      '</tr>';
+    }).join('');
+  }
+
+  function renderPagination() {
+    var pg = document.getElementById('pagination');
+    if (state.pages <= 1) { pg.innerHTML = ''; return; }
+    var html = '<button class="page-btn" id="pgPrev" '+(state.page<=1?'disabled':'')+'>‹</button>';
+    var start = Math.max(1, state.page-2), end = Math.min(state.pages, state.page+2);
+    for(var i=start;i<=end;i++){
+      html += '<button class="page-btn'+(i===state.page?' active':'')+'" data-pg="'+i+'">'+i+'</button>';
+    }
+    html += '<button class="page-btn" id="pgNext" '+(state.page>=state.pages?'disabled':'')+'>›</button>';
+    html += '<span class="page-info">'+state.page+' of '+state.pages+'</span>';
+    pg.innerHTML = html;
+
+    pg.querySelector('#pgPrev') && pg.querySelector('#pgPrev').addEventListener('click', function(){
+      if(state.page>1){ state.page--; loadEnquiries(); }
+    });
+    pg.querySelector('#pgNext') && pg.querySelector('#pgNext').addEventListener('click', function(){
+      if(state.page<state.pages){ state.page++; loadEnquiries(); }
+    });
+    pg.querySelectorAll('[data-pg]').forEach(function(b){
+      b.addEventListener('click', function(){ state.page=parseInt(b.dataset.pg,10); loadEnquiries(); });
+    });
+  }
+
+  // Event Handlers
+  document.getElementById('tableBody').addEventListener('change', function(e) {
+    var sel = e.target.closest('.status-sel');
+    if(!sel) return;
+    var id = sel.dataset.id, status = sel.value;
+    sel.setAttribute('data-status', status);
+    apiFetch('/admin/api/enquiries/'+id, {
+      method: 'PATCH',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({status:status})
+    }).then(function(){
+      toast('Enquiry #' + id + ' status updated to ' + status.toUpperCase(), 'success');
+      loadStats();
+    }).catch(function(err){ toast(err.message,'error'); });
+  });
+
+  document.getElementById('tableBody').addEventListener('click', function(e) {
+    var btn = e.target.closest('.del-btn');
+    if(!btn) return;
+    var id = btn.dataset.id;
+    if(!confirm('Permanently remove enquiry #'+id+'?')) return;
+    apiFetch('/admin/api/enquiries/'+id, {method:'DELETE'}).then(function(){
+      toast('Enquiry #'+id+' removed.', 'success');
+      loadEnquiries();
+      loadStats();
+    }).catch(function(err){ toast(err.message,'error'); });
+  });
+
+  document.getElementById('filters').addEventListener('click', function(e) {
+    var btn = e.target.closest('.filter-btn');
+    if(!btn) return;
+    document.querySelectorAll('.filter-btn').forEach(function(b){ b.classList.remove('active'); });
+    btn.classList.add('active');
+    state.filter = btn.dataset.status;
+    state.page = 1;
+    loadEnquiries();
+  });
+
+  var searchTimer = null;
+  document.getElementById('searchInput').addEventListener('input', function(e){
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(function(){
+      state.search = e.target.value.trim();
+      state.page = 1;
+      loadEnquiries();
+    }, 250);
+  });
+
+  document.getElementById('refreshBtn').addEventListener('click', function(){
+    loadEnquiries();
+    loadStats();
+    toast('Data refreshed.', 'success');
+  });
+
+  document.getElementById('exportBtn').addEventListener('click', function(){
+    if(!state.allData.length){ toast('No data to export', 'error'); return; }
+    var headers = ['ID', 'Name', 'Phone', 'Suburb', 'Job', 'Message', 'Status', 'Date'];
+    var csvContent = 'data:text/csv;charset=utf-8,' +
+      headers.join(',') + '\n' +
+      state.allData.map(function(r){
+        return [
+          r.id,
+          '"' + (r.name||'').replace(/"/g, '""') + '"',
+          '"' + (r.phone||'').replace(/"/g, '""') + '"',
+          '"' + (r.suburb||'').replace(/"/g, '""') + '"',
+          '"' + (r.job||'').replace(/"/g, '""') + '"',
+          '"' + (r.message||'').replace(/"/g, '""') + '"',
+          r.status,
+          r.created_at
+        ].join(',');
+      }).join('\n');
+    var encodedUri = encodeURI(csvContent);
+    var link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', 'CGI_Enquiries_' + new Date().toISOString().slice(0,10) + '.csv');
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    toast('CSV Export downloaded successfully.', 'success');
+  });
+
+  loadStats();
+  loadEnquiries();
+})();
+</script>
+</body>
+</html>

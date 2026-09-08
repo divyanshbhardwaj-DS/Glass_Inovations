@@ -1,5 +1,21 @@
 {
-  "dependencies": {
-    "framer-motion": "^13.1.1"
-  }
+  "name": "complete-glass-innovations",
+  "version": "1.0.0",
+  "description": "Complete Glass Innovations — Frameless Glass Specialists Melbourne full-stack website",
+  "scripts": {
+    "postinstall": "cd server && npm install",
+    "start": "node server/index.js",
+    "dev": "cd server && npx nodemon index.js",
+    "test": "node -e \"console.log('Validating files...'); require('./server/db.js'); console.log('Database OK');\""
+  },
+  "keywords": [
+    "glazier",
+    "melbourne",
+    "frameless-glass",
+    "splashbacks",
+    "balustrades",
+    "showers"
+  ],
+  "author": "Complete Glass Innovations",
+  "license": "UNLICENSED"
 }

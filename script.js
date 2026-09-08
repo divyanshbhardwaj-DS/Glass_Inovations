@@ -8,6 +8,14 @@
 
   /* ---- header scroll state + progress bar ---- */
   var header = document.getElementById('siteHeader');
+  var ann = document.querySelector('.top-announcement');
+  function syncAnnHeight(){
+    var h = ann ? ann.offsetHeight : 0;
+    document.documentElement.style.setProperty('--ann-h', h + 'px');
+  }
+  syncAnnHeight();
+  window.addEventListener('resize', syncAnnHeight, {passive:true});
+  if(document.fonts && document.fonts.ready){ document.fonts.ready.then(syncAnnHeight); }
   var toTop = document.getElementById('toTop');
   var progress = document.getElementById('progressBar');
   var quickbar = document.getElementById('quickbar');
@@ -169,33 +177,266 @@
   var form = document.getElementById('quoteForm');
   var success = document.getElementById('formSuccess');
   var submitBtn = document.getElementById('submitBtn');
+  var formError = document.getElementById('formError');
   var submitting = false;
+
+  function setFieldError(name, msg) {
+    var field = form.querySelector('[name="' + name + '"]');
+    if (!field) return;
+    field.classList.toggle('is-invalid', !!msg);
+    var err = field.parentElement.querySelector('.field-error');
+    if (!err) {
+      err = document.createElement('span');
+      err.className = 'field-error';
+      err.setAttribute('role', 'alert');
+      field.parentElement.appendChild(err);
+    }
+    err.textContent = msg || '';
+    err.style.display = msg ? 'block' : 'none';
+  }
+  function clearErrors() {
+    form.querySelectorAll('.is-invalid').forEach(function(el){ el.classList.remove('is-invalid'); });
+    form.querySelectorAll('.field-error').forEach(function(el){ el.textContent = ''; el.style.display = 'none'; });
+    if (formError) { formError.textContent = ''; formError.style.display = 'none'; }
+  }
+
   form.addEventListener('submit', function(e){
     e.preventDefault();
-    if(submitting) return;
-    if(!form.checkValidity()){ form.reportValidity(); return; }
+    if (submitting) return;
+    clearErrors();
+    if (!form.checkValidity()) { form.reportValidity(); return; }
+
     submitting = true;
     submitBtn.classList.add('is-busy');
+    submitBtn.disabled = true;
     var label = submitBtn.querySelector('.btn-label');
-    label.textContent = 'Preparing\u2026';
+    var origLabel = label.textContent;
+    label.textContent = 'Sending\u2026';
+
     var data = new FormData(form);
-    var body = [
-      'Name: ' + data.get('name'),
-      'Phone: ' + data.get('phone'),
-      'Suburb: ' + data.get('suburb'),
-      'Job type: ' + data.get('job'),
-      '',
-      data.get('message') || ''
-    ].join('%0D%0A');
-    var subject = encodeURIComponent('Quote request \u2014 ' + data.get('job'));
-    window.setTimeout(function(){
-      window.location.href = 'mailto:info@completeglassinnovations.com.au?subject=' + subject + '&body=' + body;
-      success.classList.add('show');
-      success.focus();
-      form.reset();
-      label.textContent = 'Send enquiry';
-      submitBtn.classList.remove('is-busy');
+    var payload = {
+      name:    data.get('name'),
+      phone:   data.get('phone'),
+      suburb:  data.get('suburb'),
+      job:     data.get('job'),
+      message: data.get('message')
+    };
+
+    // Determine API base: same-origin when served by Node, else localhost fallback
+    var apiBase = (window.location.port === '3001' || window.location.port === '' || window.location.port === '80' || window.location.port === '443')
+      ? ''
+      : 'http://localhost:3001';
+
+    fetch(apiBase + '/api/quote', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    })
+    .then(function(res) {
+      return res.json().then(function(d) { return { ok: res.ok, data: d }; });
+    })
+    .then(function(result) {
+      if (result.ok) {
+        // Success
+        form.reset();
+        form.style.display = 'none';
+        success.textContent = result.data.message || 'Thank you \u2014 we\u2019ll be in touch shortly!';
+        success.classList.add('show');
+        success.focus();
+      } else {
+        // Validation / server error
+        if (result.data.fields) {
+          Object.keys(result.data.fields).forEach(function(k) {
+            setFieldError(k, result.data.fields[k]);
+          });
+          // Focus first invalid field
+          var first = form.querySelector('.is-invalid');
+          if (first) first.focus();
+        } else {
+          if (formError) {
+            formError.textContent = result.data.error || 'Something went wrong. Please try calling us directly.';
+            formError.style.display = 'block';
+          }
+        }
+      }
+    })
+    .catch(function() {
+      if (formError) {
+        formError.textContent = 'Network error — please check your connection or call us on 0497\u00a0470\u00a0036.';
+        formError.style.display = 'block';
+      }
+    })
+    .finally(function() {
       submitting = false;
-    }, 600);
+      submitBtn.classList.remove('is-busy');
+      submitBtn.disabled = false;
+      label.textContent = origLabel;
+    });
   });
-})();
+
+  /* ---- Hero Glass Finish Selector ---- */
+  var hgsBtns = document.querySelectorAll('.hgs-btn');
+  var heroTag = document.getElementById('heroTag');
+  var heroChip1 = document.getElementById('heroChip1');
+  var heroChip2 = document.getElementById('heroChip2');
+  if (hgsBtns.length && heroTag) {
+    hgsBtns.forEach(function(btn){
+      btn.addEventListener('click', function(){
+        hgsBtns.forEach(function(b){ b.classList.remove('active'); });
+        btn.classList.add('active');
+        var tagText = btn.getAttribute('data-tag');
+        heroTag.innerHTML = '<i>●</i>&nbsp; ' + tagText;
+        if(heroChip1 && heroChip2){
+          var grade = btn.getAttribute('data-grade');
+          if(grade === 'clear'){
+            heroChip1.textContent = '10MM · ULTRA-CLEAR';
+            heroChip2.textContent = 'LOW-IRON · TOUGHENED';
+          } else if(grade === 'frosted'){
+            heroChip1.textContent = '12MM · SATIN FROST';
+            heroChip2.textContent = 'ACID-ETCHED · PRIVACY';
+          } else if(grade === 'smoked'){
+            heroChip1.textContent = '10MM · SMOKED TINT';
+            heroChip2.textContent = 'ARCHITECTURAL BRONZE';
+          } else if(grade === 'print'){
+            heroChip1.textContent = '6MM · CERAMIC UV';
+            heroChip2.textContent = 'CUSTOM HIGH-RES PRINT';
+          }
+        }
+      });
+    });
+  }
+
+  /* ---- Instant Glass Estimator ---- */
+  (function(){
+    var typeChips = document.querySelectorAll('.est-chip');
+    var widthSlider = document.getElementById('estWidth');
+    var heightSlider = document.getElementById('estHeight');
+    var widthVal = document.getElementById('estWidthVal');
+    var heightVal = document.getElementById('estHeightVal');
+    var priceDisplay = document.getElementById('estPriceDisplay');
+    var areaDisplay = document.getElementById('estAreaDisplay');
+    var specDisplay = document.getElementById('estSpecDisplay');
+    var gradeRadios = document.querySelectorAll('input[name="estGrade"]');
+    var applyBtn = document.getElementById('estApplyBtn');
+
+    if(!widthSlider || !heightSlider || !priceDisplay) return;
+
+    var currentRate = 420;
+    var currentType = 'Splashback';
+    var currentSpec = '6mm Toughened';
+
+    function calculateEstimate(){
+      var w = parseInt(widthSlider.value, 10);
+      var h = parseInt(heightSlider.value, 10);
+      widthVal.textContent = w + ' mm';
+      heightVal.textContent = h + ' mm';
+
+      var areaSqM = (w / 1000) * (h / 1000);
+      areaDisplay.textContent = areaSqM.toFixed(2) + ' m²';
+
+      var multiplier = 1;
+      var selectedGrade = document.querySelector('input[name="estGrade"]:checked');
+      if(selectedGrade){
+        if(selectedGrade.value === 'lowiron') multiplier = 1.15;
+        else if(selectedGrade.value === 'frosted') multiplier = 1.20;
+      }
+
+      var basePrice = areaSqM * currentRate * multiplier;
+      var minPrice = Math.round(Math.max(380, basePrice * 0.92));
+      var maxPrice = Math.round(Math.max(480, basePrice * 1.15));
+
+      priceDisplay.textContent = '$' + minPrice.toLocaleString('en-AU') + ' – $' + maxPrice.toLocaleString('en-AU');
+      specDisplay.textContent = currentSpec;
+    }
+
+    typeChips.forEach(function(chip){
+      chip.addEventListener('click', function(){
+        typeChips.forEach(function(c){ c.classList.remove('active'); });
+        chip.classList.add('active');
+        currentRate = parseInt(chip.getAttribute('data-rate'), 10) || 420;
+        currentType = chip.getAttribute('data-type') || 'Splashback';
+        currentSpec = chip.getAttribute('data-thick') || '6mm Toughened';
+        calculateEstimate();
+      });
+    });
+
+    widthSlider.addEventListener('input', calculateEstimate);
+    heightSlider.addEventListener('input', calculateEstimate);
+    gradeRadios.forEach(function(r){ r.addEventListener('change', calculateEstimate); });
+
+    if(applyBtn){
+      applyBtn.addEventListener('click', function(){
+        var jobSelect = document.getElementById('fJob');
+        var msgArea = document.getElementById('fMsg');
+        var contactSec = document.getElementById('contact');
+
+        if(jobSelect){
+          for(var i=0; i<jobSelect.options.length; i++){
+            if(jobSelect.options[i].value === currentType || jobSelect.options[i].text.includes(currentType)){
+              jobSelect.selectedIndex = i;
+              break;
+            }
+          }
+        }
+
+        if(msgArea){
+          var w = widthSlider.value;
+          var h = heightSlider.value;
+          var selectedGrade = document.querySelector('input[name="estGrade"]:checked');
+          var gradeText = selectedGrade ? selectedGrade.parentElement.textContent.trim() : 'Standard';
+          msgArea.value = 'Calculated Quote: ' + currentType + ' (' + w + 'mm × ' + h + 'mm), Grade: ' + gradeText + '. Estimated: ' + priceDisplay.textContent + '.';
+        }
+
+        if(contactSec){
+          contactSec.scrollIntoView({ behavior: 'smooth' });
+          var nameInput = document.getElementById('fName');
+          if(nameInput) setTimeout(function(){ nameInput.focus(); }, 600);
+        }
+      });
+    }
+
+    calculateEstimate();
+  })();
+
+  /* ---- Before & After Transformation Slider ---- */
+  (function(){
+    var container = document.getElementById('baContainer');
+    var beforeLayer = document.getElementById('baBeforeLayer');
+    var handle = document.getElementById('baHandle');
+    if(!container || !beforeLayer || !handle) return;
+
+    var dragging = false;
+
+    function setPosition(xPos){
+      var rect = container.getBoundingClientRect();
+      var offsetX = Math.max(0, Math.min(xPos - rect.left, rect.width));
+      var percentage = (offsetX / rect.width) * 100;
+      beforeLayer.style.width = percentage + '%';
+      handle.style.left = percentage + '%';
+    }
+
+    function onPointerMove(e){
+      if(!dragging) return;
+      var clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      setPosition(clientX);
+    }
+
+    function onPointerDown(e){
+      dragging = true;
+      var clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      setPosition(clientX);
+    }
+
+    function onPointerUp(){
+      dragging = false;
+    }
+
+    container.addEventListener('mousedown', onPointerDown);
+    window.addEventListener('mousemove', onPointerMove);
+    window.addEventListener('mouseup', onPointerUp);
+
+    container.addEventListener('touchstart', onPointerDown, { passive: true });
+    window.addEventListener('touchmove', onPointerMove, { passive: true });
+    window.addEventListener('touchend', onPointerUp);
+  })();
+})();
